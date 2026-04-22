@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BankParse — PDF to CSV Converter</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link href="index.css" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <a class="nav-logo" href="#">
+      <div class="nav-logo-icon">B$</div>
+      <span class="nav-logo-text">BankParse</span>
+    </a>
+    <span class="nav-tag">Bank Statement Converter</span>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-glow"></div>
+    <div class="hero-badge">Bank Statement Converter</div>
+    <h1>Turn Bank Statements<br>into <span>Clean Data</span></h1>
+    <p class="hero-sub">
+      Upload any PDF bank statement and convert every transaction into structured CSV or JSON — in seconds.
+    </p>
+    <div class="hero-banks">
+      <span class="bank-chip">HDFC</span>
+      <span class="bank-chip">SBI</span>
+      <span class="bank-chip">ICICI</span>
+      <span class="bank-chip">Axis</span>
+      <span class="bank-chip">Kotak</span>
+      <span class="bank-chip">PNB</span>
+      <span class="bank-chip">+ Any Bank</span>
+    </div>
+  </section>
+
+  <!-- CONVERTER -->
+  <section class="converter">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-dot" style="background:#FF4D6D"></div>
+        <div class="card-dot" style="background:#FFD700; margin-left:4px"></div>
+        <div class="card-dot" style="background:#00FF94; margin-left:4px"></div>
+        <span style="margin-left:12px">bankparse.app — converter</span>
+      </div>
+      <div class="card-body">
+
+        <!-- Dropzone -->
+        <div id="dropzone"
+          ondragover="event.preventDefault(); this.classList.add('active')"
+          ondragleave="this.classList.remove('active')"
+          ondrop="handleDrop(event)"
+          onclick="document.getElementById('fileInput').click()">
+          <div class="drop-icon" id="drop-icon">📂</div>
+          <div class="drop-title" id="drop-title">Drop your bank statement PDF here</div>
+          <div class="drop-hint" id="drop-hint">or click to browse · PDF files only</div>
+          <div id="file-name-chip" style="display:none" class="file-name">
+            <span>📎</span><span id="file-name-text"></span>
+          </div>
+        </div>
+        <input type="file" id="fileInput" accept="application/pdf" onchange="handleFileInput(this)" style="display:none" />
+
+        <!-- Buttons -->
+        <div class="btn-row">
+          <button class="btn-primary" id="convertBtn" onclick="convert()" disabled>⚡ Convert to CSV</button>
+          <button class="btn-green" id="csvBtn" style="display:none" onclick="downloadCSV()">⬇ CSV</button>
+          <button class="btn-secondary" id="jsonBtn" style="display:none" onclick="downloadJSON()">⬇ JSON</button>
+          <button class="btn-secondary" id="resetBtn" style="display:none" onclick="resetAll()">✕ Reset</button>
+        </div>
+
+        <!-- Status -->
+        <div id="status-bar">
+          <div id="status-icon" class="spinner"></div>
+          <span id="status-text">Processing…</span>
+        </div>
+
+        <!-- Stats + Table -->
+        <div id="stats-section">
+          <div class="stats-grid" id="stats-grid"></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Description</th>
+                  <th>Category</th>
+                  <th>Type</th>
+                  <th>Amount (₹)</th>
+                  <th>Balance (₹)</th>
+                </tr>
+              </thead>
+              <tbody id="table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="features">
+    <div class="feat">
+      <div class="feat-icon">🤖</div>
+      <div class="feat-title">Convert Your Bank Statement</div>
+      <div class="feat-desc">I will read your PDF like a human — handles messy formats, scanned docs, and multi-page statements.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🏷️</div>
+      <div class="feat-title">Auto Categorization</div>
+      <div class="feat-desc">Every transaction is tagged automatically — Food, Transport, Salary, EMI, ATM and more.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">📊</div>
+      <div class="feat-title">CSV & JSON Export</div>
+      <div class="feat-desc">Download clean data ready for Excel, Google Sheets, Tally, or your custom accounting tool.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🔒</div>
+      <div class="feat-title">Private & Secure</div>
+      <div class="feat-desc">Your PDF is never stored. Processing happens in real-time and data stays in your browser.</div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    Built with LoVe · BankStatementConverter © 2026 · PDF → CSV in seconds
+  </footer>
+
+  <script src="index.js">
+  </script>
+</body>
+</html>
