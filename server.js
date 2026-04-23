@@ -6,7 +6,7 @@ import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-console.log('✅ SERVER LOADED - Groq version');
+console.log('✅ SERVER LOADED - Mistral version');
 
 // ─── Text Cleaner ─────────────────────────────────────────────────────────────
 function cleanExtractedText(text) {
@@ -39,17 +39,18 @@ function repairJSON(raw) {
   return "[]";
 }
 
-// ─── Call Groq AI on a single chunk ──────────────────────────────────────────
+// ─── Call Mistral AI on a single chunk ───────────────────────────────────────
 async function parseChunkWithAI(chunkText) {
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+      Authorization: `Bearer ${process.env.MISTRAL_API_KEY}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: "llama-3.1-8b-instant",
+      model: "mistral-small-latest",
       max_tokens: 4096,
+      temperature: 0.1,
       messages: [
         {
           role: "system",
@@ -75,18 +76,18 @@ ${chunkText}`
   });
 
   const text = await response.text();
-  console.log('🤖 Groq raw response:', text.slice(0, 300));
+  console.log('🤖 Mistral raw response:', text.slice(0, 300));
 
   let result;
   try {
     result = JSON.parse(text);
   } catch {
-    console.error('❌ Groq returned non-JSON:', text.slice(0, 200));
+    console.error('❌ Mistral returned non-JSON:', text.slice(0, 200));
     return [];
   }
 
   if (result.error) {
-    throw new Error('Groq error: ' + (result.error.message || JSON.stringify(result.error)));
+    throw new Error('Mistral error: ' + (result.error.message || JSON.stringify(result.error)));
   }
 
   const raw = result.choices?.[0]?.message?.content ?? "";
@@ -102,8 +103,8 @@ ${chunkText}`
   }
 }
 
-// ─── Retry wrapper (handles Groq 429 rate limit) ──────────────────────────────
-async function parseChunkWithRetry(chunkText, retries = 5, delayMs = 60000) {
+// ─── Retry wrapper ────────────────────────────────────────────────────────────
+async function parseChunkWithRetry(chunkText, retries = 3, delayMs = 2000) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       return await parseChunkWithAI(chunkText);
@@ -152,9 +153,9 @@ app.post('/api/convert', async (req, res) => {
     console.log('🧹 Cleaned text length:', extractedText.length);
     console.log('🧹 Cleaned text sample:', extractedText.slice(0, 300));
 
-    // Smaller chunks for 8B model — it handles less context than 70B
-    const CHUNK_SIZE = 3000;
-    const OVERLAP = 150;
+    // Mistral handles large context well — bigger chunks = fewer API calls
+    const CHUNK_SIZE = 8000;
+    const OVERLAP = 300;
     const chunks = [];
 
     if (extractedText.length <= CHUNK_SIZE) {
@@ -169,16 +170,11 @@ app.post('/api/convert', async (req, res) => {
 
     let allTransactions = [];
     for (let i = 0; i < chunks.length; i++) {
-  console.log(`🤖 Processing chunk ${i + 1}/${chunks.length}...`);
-  const txns = await parseChunkWithRetry(chunks[i]);
-  console.log(`✅ Chunk ${i + 1} returned ${txns.length} transactions`);
-  allTransactions = allTransactions.concat(txns);
-  // Wait 62 seconds between chunks to reset the TPM limit
-  if (i < chunks.length - 1) {
-    console.log(`⏳ Waiting 62s before next chunk to avoid rate limit...`);
-    await new Promise(r => setTimeout(r, 62000));
-  }
-}
+      console.log(`🤖 Processing chunk ${i + 1}/${chunks.length}...`);
+      const txns = await parseChunkWithRetry(chunks[i]);
+      console.log(`✅ Chunk ${i + 1} returned ${txns.length} transactions`);
+      allTransactions = allTransactions.concat(txns);
+    }
 
     // Deduplicate by date + amount + description
     const seen = new Set();
