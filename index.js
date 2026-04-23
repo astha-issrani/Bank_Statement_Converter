@@ -52,9 +52,15 @@ async function convert() {
   try {
     setStatus('loading', 'AI is extracting transactions…');
 
+    // ✅ Use FormData to send both file and optional password
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    const pw = document.getElementById('pdfPassword')?.value?.trim();
+    if (pw) formData.append('password', pw);
+
     const res = await fetch('/api/convert', {
       method: 'POST',
-      body: selectedFile  // send PDF buffer directly
+      body: formData   // ← multipart now, not raw buffer
     });
 
     if (!res.ok) {
@@ -62,7 +68,6 @@ async function convert() {
       throw new Error(err.error || 'Server error');
     }
 
-    // ✅ Backend now sends { transactions: [...] } directly
     const data = await res.json();
 
     if (!data.transactions || !Array.isArray(data.transactions) || data.transactions.length === 0) {
