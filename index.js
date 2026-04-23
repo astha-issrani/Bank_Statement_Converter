@@ -52,15 +52,12 @@ async function convert() {
   try {
     setStatus('loading', 'AI is extracting transactions…');
 
-    // ✅ Use FormData to send both file and optional password
-    const formData = new FormData();
-    formData.append('file', selectedFile);
     const pw = document.getElementById('pdfPassword')?.value?.trim();
-    if (pw) formData.append('password', pw);
+    const url = pw ? `/api/convert?password=${encodeURIComponent(pw)}` : '/api/convert';
 
-    const res = await fetch('/api/convert', {
+    const res = await fetch(url, {
       method: 'POST',
-      body: formData   // ← multipart now, not raw buffer
+      body: selectedFile
     });
 
     if (!res.ok) {
@@ -88,8 +85,11 @@ async function convert() {
 }
 
 function renderResults() {
-  const credits = transactions.filter(t => t.type === 'credit').reduce((s, t) => s + Number(t.amount), 0);
-  const debits  = transactions.filter(t => t.type === 'debit').reduce((s, t) => s + Number(t.amount), 0);
+  const parseAmt = v => parseFloat(String(v ?? 0).replace(/,/g, '')) || 0;
+  transactions = transactions.map(t => ({ ...t, type: (t.type ?? '').toLowerCase() }));
+
+  const credits = transactions.filter(t => t.type === 'credit').reduce((s, t) => s + parseAmt(t.amount), 0);
+  const debits  = transactions.filter(t => t.type === 'debit').reduce((s, t)  => s + parseAmt(t.amount), 0);
   const net = credits - debits;
 
   document.getElementById('stats-grid').innerHTML = `
@@ -107,7 +107,7 @@ function renderResults() {
     </div>
     <div class="stat-box">
       <div class="stat-label">Net Flow</div>
-      <div class="stat-value" style="color:${net >= 0 ? '#00FF94' : '#FF4D6D'}">${net >= 0 ? '+' : ''}₹${Math.abs(net).toLocaleString('en-IN', {minimumFractionDigits:2})}</div>
+      <div class="stat-value" style="color:${net >= 0 ? '#00FF94' : '#FF4D6D'}">${net >= 0 ? '+₹' : '−₹'}${Math.abs(net).toLocaleString('en-IN', {minimumFractionDigits:2})}</div>
     </div>
   `;
 
@@ -118,8 +118,8 @@ function renderResults() {
       <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis">${t.description ?? '—'}</td>
       <td><span class="tag">${t.category ?? 'Other'}</span></td>
       <td><span class="type-badge type-${t.type}">${t.type}</span></td>
-      <td class="${t.type}">${t.type === 'debit' ? '−' : '+'}${Number(t.amount).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
-      <td style="color:#4A5568">${t.balance != null ? Number(t.balance).toLocaleString('en-IN', {minimumFractionDigits:2}) : '—'}</td>
+      <td class="${t.type}">${t.type === 'debit' ? '−' : '+'}₹${parseAmt(t.amount).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
+      <td style="color:#4A5568">${t.balance != null ? '₹' + parseAmt(t.balance).toLocaleString('en-IN', {minimumFractionDigits:2}) : '—'}</td>
     </tr>
   `).join('');
 
@@ -130,7 +130,7 @@ function downloadCSV() {
   const header = ['Date','Description','Type','Amount','Balance','Category'];
   const rows = transactions.map(t => [
     t.date,
-    `"${(t.description ?? '').replace(/"/g, '""')}"`,  // ✅ escape quotes in description
+    `"${(t.description ?? '').replace(/"/g, '""')}"`,
     t.type,
     t.amount,
     t.balance ?? '',

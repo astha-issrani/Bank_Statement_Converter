@@ -1,25 +1,36 @@
+import 'dotenv/config';  
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
-
-const require = createRequire(import.meta.url);
-const { PDFParse } = require('pdf-parse');
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
-// ✅ API route FIRST — before static middleware
 app.post('/api/convert', async (req, res) => {
   try {
+    const urlObj = new URL(req.url, 'http://localhost');
+    const password = urlObj.searchParams.get('password') || '';
+    console.log('🔑 Password received:', password || '(none)');
+
     const buffers = [];
     for await (const chunk of req) buffers.push(chunk);
     const fileBuffer = Buffer.concat(buffers);
     console.log('📄 File buffer size:', fileBuffer.length);
 
-    const parser = new PDFParse({ data: fileBuffer });
-    const parsed = await parser.getText();
-    const extractedText = parsed.text;
+    // ✅ pdfjs-dist handles password natively
+    const loadingTask = getDocument({
+      data: new Uint8Array(fileBuffer),
+      ...(password ? { password } : {})
+    });
+    const pdfDoc = await loadingTask.promise;
+
+    let extractedText = '';
+    for (let i = 1; i <= pdfDoc.numPages; i++) {
+      const page = await pdfDoc.getPage(i);
+      const content = await page.getTextContent();
+      extractedText += content.items.map(item => item.str).join(' ') + '\n';
+    }
     console.log('📝 Extracted text length:', extractedText.length);
 
     const aiResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -58,16 +69,19 @@ ${extractedText}`
 
     const clean = raw.replace(/```json|```/g, "").trim();
     const transactions = JSON.parse(clean);
+    console.log('🔍 Sample transaction:', JSON.stringify(transactions[0]));
 
     res.status(200).json({ transactions });
 
   } catch (err) {
     console.error('❌ Error:', err);
-    res.status(500).json({ error: err.message });
+    const msg = err.message?.toLowerCase().includes('password')
+      ? 'Wrong password or PDF is encrypted. Please enter the correct password.'
+      : err.message;
+    res.status(500).json({ error: msg });
   }
 });
 
-// ✅ Static files AFTER API routes
 app.use(express.static(__dirname));
 
 const PORT = process.env.PORT || 3000;
