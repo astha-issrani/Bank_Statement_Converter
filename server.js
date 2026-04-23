@@ -6,8 +6,9 @@ import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-console.log('✅ NEW SERVER VERSION LOADED - with chunking');
-// ─── Text Cleaner ────────────────────────────────────────────────────────────
+console.log('✅ SERVER LOADED - Groq version');
+
+// ─── Text Cleaner ─────────────────────────────────────────────────────────────
 function cleanExtractedText(text) {
   return text
     .replace(/â‚¹/g, '₹')
@@ -20,7 +21,7 @@ function cleanExtractedText(text) {
     .trim();
 }
 
-// ─── JSON Repair ─────────────────────────────────────────────────────────────
+// ─── JSON Repair ──────────────────────────────────────────────────────────────
 function repairJSON(raw) {
   raw = raw.replace(/```json|```/g, "").trim();
   const arrayStart = raw.indexOf("[");
@@ -47,7 +48,7 @@ async function parseChunkWithAI(chunkText) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: "llama-3.3-70b-versatile",
+      model: "llama-3.1-8b-instant",
       max_tokens: 4096,
       messages: [
         {
@@ -73,11 +74,24 @@ ${chunkText}`
     })
   });
 
-  const result = await response.json();
+  const text = await response.text();
+  console.log('🤖 Groq raw response:', text.slice(0, 300));
 
-  if (result.error) throw new Error('Groq error: ' + result.error.message);
+  let result;
+  try {
+    result = JSON.parse(text);
+  } catch {
+    console.error('❌ Groq returned non-JSON:', text.slice(0, 200));
+    return [];
+  }
+
+  if (result.error) {
+    throw new Error('Groq error: ' + (result.error.message || JSON.stringify(result.error)));
+  }
 
   const raw = result.choices?.[0]?.message?.content ?? "";
+  console.log('📦 Raw AI response:', raw.slice(0, 300));
+
   const clean = repairJSON(raw);
 
   try {
@@ -88,15 +102,18 @@ ${chunkText}`
   }
 }
 
-// ─── Retry wrapper (handles Groq 429 rate limit) ─────────────────────────────
-async function parseChunkWithRetry(chunkText, retries = 3, delayMs = 2000) {
+// ─── Retry wrapper (handles Groq 429 rate limit) ──────────────────────────────
+async function parseChunkWithRetry(chunkText, retries = 5, delayMs = 60000) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       return await parseChunkWithAI(chunkText);
     } catch (err) {
-      const isRateLimit = err.message?.includes('429') || err.message?.toLowerCase().includes('rate');
+      const isRateLimit =
+        err.message?.includes('429') ||
+        err.message?.toLowerCase().includes('rate') ||
+        err.message?.toLowerCase().includes('quota');
       if (isRateLimit && attempt < retries) {
-        console.log(`⏳ Rate limited. Waiting ${delayMs}ms before retry ${attempt}/${retries}...`);
+        console.log(`⏳ Rate limited. Waiting ${delayMs * attempt}ms before retry ${attempt}/${retries}...`);
         await new Promise(r => setTimeout(r, delayMs * attempt));
       } else {
         throw err;
@@ -112,13 +129,11 @@ app.post('/api/convert', async (req, res) => {
     const password = urlObj.searchParams.get('password') || '';
     console.log('🔑 Password received:', password || '(none)');
 
-    // Read PDF buffer
     const buffers = [];
     for await (const chunk of req) buffers.push(chunk);
     const fileBuffer = Buffer.concat(buffers);
     console.log('📄 File buffer size:', fileBuffer.length);
 
-    // Extract text with pdfjs-dist
     const loadingTask = getDocument({
       data: new Uint8Array(fileBuffer),
       ...(password ? { password } : {})
@@ -133,15 +148,13 @@ app.post('/api/convert', async (req, res) => {
     }
     console.log('📝 Raw extracted text length:', extractedText.length);
 
-    // Clean symbols and garbage characters
     extractedText = cleanExtractedText(extractedText);
     console.log('🧹 Cleaned text length:', extractedText.length);
     console.log('🧹 Cleaned text sample:', extractedText.slice(0, 300));
 
-    // Split into chunks of 8000 chars with 500 char overlap
-    // (overlap prevents transactions from being split across chunks)
-    const CHUNK_SIZE = 8000;
-    const OVERLAP = 500;
+    // Smaller chunks for 8B model — it handles less context than 70B
+    const CHUNK_SIZE = 3000;
+    const OVERLAP = 150;
     const chunks = [];
 
     if (extractedText.length <= CHUNK_SIZE) {
@@ -154,17 +167,20 @@ app.post('/api/convert', async (req, res) => {
     }
     console.log(`📦 Split into ${chunks.length} chunk(s)`);
 
-    // Process each chunk
     let allTransactions = [];
     for (let i = 0; i < chunks.length; i++) {
-      console.log(`🤖 Processing chunk ${i + 1}/${chunks.length}...`);
-      const transactions = await parseChunkWithRetry(chunks[i]);
-      console.log(`✅ Chunk ${i + 1} returned ${transactions.length} transactions`);
-      allTransactions = allTransactions.concat(transactions);
-    }
+  console.log(`🤖 Processing chunk ${i + 1}/${chunks.length}...`);
+  const txns = await parseChunkWithRetry(chunks[i]);
+  console.log(`✅ Chunk ${i + 1} returned ${txns.length} transactions`);
+  allTransactions = allTransactions.concat(txns);
+  // Wait 62 seconds between chunks to reset the TPM limit
+  if (i < chunks.length - 1) {
+    console.log(`⏳ Waiting 62s before next chunk to avoid rate limit...`);
+    await new Promise(r => setTimeout(r, 62000));
+  }
+}
 
-    // Remove duplicates caused by chunk overlap
-    // (same date + amount + description = duplicate)
+    // Deduplicate by date + amount + description
     const seen = new Set();
     const deduplicated = allTransactions.filter(tx => {
       const key = `${tx.date}|${tx.amount}|${tx.description}`;
@@ -174,7 +190,7 @@ app.post('/api/convert', async (req, res) => {
     });
 
     console.log(`🎯 Total: ${allTransactions.length} raw → ${deduplicated.length} after dedup`);
-    console.log('🔍 Sample transaction:', JSON.stringify(deduplicated[0]));
+    if (deduplicated[0]) console.log('🔍 Sample:', JSON.stringify(deduplicated[0]));
 
     res.status(200).json({ transactions: deduplicated });
 
@@ -187,7 +203,12 @@ app.post('/api/convert', async (req, res) => {
   }
 });
 
-app.use(express.static(__dirname));
+app.use(express.static(__dirname, {
+  index: 'index.html',
+  setHeaders: (res, filePath) => {
+    if (filePath.includes('/api/')) res.status(403).end();
+  }
+}));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Running at http://localhost:${PORT}`));

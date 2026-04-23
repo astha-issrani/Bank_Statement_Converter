@@ -18,14 +18,13 @@ function setFile(f) {
   document.getElementById('drop-icon').textContent = '📄';
   document.getElementById('drop-title').textContent = f.name;
   document.getElementById('drop-hint').textContent = (f.size / 1024).toFixed(1) + ' KB · Click to change';
-  const chip = document.getElementById('file-name-chip');
   document.getElementById('file-name-text').textContent = f.name;
-  chip.style.display = 'inline-flex';
+  document.getElementById('file-name-chip').style.display = 'inline-flex';
   document.getElementById('convertBtn').disabled = false;
 }
 
 function setStatus(type, message) {
-  const bar = document.getElementById('status-bar');
+  const bar  = document.getElementById('status-bar');
   const icon = document.getElementById('status-icon');
   const text = document.getElementById('status-text');
   bar.classList.add('show');
@@ -34,25 +33,29 @@ function setStatus(type, message) {
   if (type === 'loading') {
     icon.className = 'spinner';
     icon.style.background = '';
+    icon.style.boxShadow = '';
   } else {
     icon.className = 'dot-pulse';
-    icon.style.background = type === 'error' ? '#FF4D6D' : '#00FF94';
-    icon.style.boxShadow = '0 0 8px ' + (type === 'error' ? '#FF4D6D' : '#00FF94');
+    icon.style.background   = type === 'error' ? '#FF4D6D' : '#00FF94';
+    icon.style.boxShadow    = '0 0 8px ' + (type === 'error' ? '#FF4D6D' : '#00FF94');
   }
 }
 
 async function convert() {
   if (!selectedFile) return;
-  document.getElementById('convertBtn').disabled = true;
+
+  const convertBtn = document.getElementById('convertBtn');
+  convertBtn.disabled = true;
+  convertBtn.textContent = 'Processing...';
   document.getElementById('stats-section').classList.remove('show');
   transactions = [];
 
   setStatus('loading', 'Reading PDF…');
 
   try {
-    setStatus('loading', 'AI is extracting transactions…');
+    setStatus('loading', 'AI is extracting transactions… this may take 15-30 seconds');
 
-    const pw = document.getElementById('pdfPassword')?.value?.trim();
+    const pw  = document.getElementById('pdfPassword')?.value?.trim();
     const url = pw ? `/api/convert?password=${encodeURIComponent(pw)}` : '/api/convert';
 
     const res = await fetch(url, {
@@ -74,13 +77,15 @@ async function convert() {
     transactions = data.transactions;
     setStatus('done', `✓ Extracted ${transactions.length} transactions`);
     renderResults();
-    document.getElementById('csvBtn').style.display = 'inline-block';
-    document.getElementById('jsonBtn').style.display = 'inline-block';
+    document.getElementById('csvBtn').style.display  = 'inline-block';
+    document.getElementById('jsonBtn').style.display  = 'inline-block';
     document.getElementById('resetBtn').style.display = 'inline-block';
 
   } catch (err) {
     setStatus('error', 'Error: ' + (err.message || 'Conversion failed'));
-    document.getElementById('convertBtn').disabled = false;
+  } finally {
+    convertBtn.disabled    = false;
+    convertBtn.textContent = '⚡ Convert to CSV';
   }
 }
 
@@ -107,12 +112,13 @@ function renderResults() {
     </div>
     <div class="stat-box">
       <div class="stat-label">Net Flow</div>
-      <div class="stat-value" style="color:${net >= 0 ? '#00FF94' : '#FF4D6D'}">${net >= 0 ? '+₹' : '−₹'}${Math.abs(net).toLocaleString('en-IN', {minimumFractionDigits:2})}</div>
+      <div class="stat-value" style="color:${net >= 0 ? '#00FF94' : '#FF4D6D'}">
+        ${net >= 0 ? '+₹' : '−₹'}${Math.abs(net).toLocaleString('en-IN', {minimumFractionDigits:2})}
+      </div>
     </div>
   `;
 
-  const tbody = document.getElementById('table-body');
-  tbody.innerHTML = transactions.map(t => `
+  document.getElementById('table-body').innerHTML = transactions.map(t => `
     <tr>
       <td>${t.date ?? '—'}</td>
       <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis">${t.description ?? '—'}</td>
@@ -146,8 +152,8 @@ function downloadJSON() {
 
 function triggerDownload(name, content, mime) {
   const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
   a.href = url; a.download = name; a.click();
   URL.revokeObjectURL(url);
 }
@@ -155,15 +161,36 @@ function triggerDownload(name, content, mime) {
 function resetAll() {
   selectedFile = null;
   transactions = [];
-  document.getElementById('drop-icon').textContent = '📂';
-  document.getElementById('drop-title').textContent = 'Drop your bank statement PDF here';
-  document.getElementById('drop-hint').textContent = 'or click to browse · PDF files only';
+  document.getElementById('drop-icon').textContent       = '📂';
+  document.getElementById('drop-title').textContent      = 'Drop your bank statement PDF here';
+  document.getElementById('drop-hint').textContent       = 'or click to browse · PDF files only';
   document.getElementById('file-name-chip').style.display = 'none';
-  document.getElementById('convertBtn').disabled = true;
-  document.getElementById('csvBtn').style.display = 'none';
-  document.getElementById('jsonBtn').style.display = 'none';
-  document.getElementById('resetBtn').style.display = 'none';
+  document.getElementById('convertBtn').disabled          = true;
+  document.getElementById('csvBtn').style.display         = 'none';
+  document.getElementById('jsonBtn').style.display        = 'none';
+  document.getElementById('resetBtn').style.display       = 'none';
   document.getElementById('status-bar').classList.remove('show');
   document.getElementById('stats-section').classList.remove('show');
-  document.getElementById('fileInput').value = '';
+  document.getElementById('fileInput').value              = '';
 }
+
+// ─── Wire up all events ───────────────────────────────────────────────────────
+const dropzone  = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+
+dropzone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dropzone.classList.add('active');
+});
+dropzone.addEventListener('dragleave', () => {
+  dropzone.classList.remove('active');
+});
+dropzone.addEventListener('drop', handleDrop);
+dropzone.addEventListener('click', () => fileInput.click());
+
+fileInput.addEventListener('change', () => handleFileInput(fileInput));
+
+document.getElementById('convertBtn').addEventListener('click', convert);
+document.getElementById('csvBtn').addEventListener('click', downloadCSV);
+document.getElementById('jsonBtn').addEventListener('click', downloadJSON);
+document.getElementById('resetBtn').addEventListener('click', resetAll);

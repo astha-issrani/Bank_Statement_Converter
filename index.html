@@ -47,22 +47,19 @@
         <span style="margin-left:12px">bankparse.app — converter</span>
       </div>
       <div class="card-body">
-    <!-- Password field for protected PDFs -->
-<div id="password-row" style="margin: 12px 0;">
-  <input 
-    type="password" 
-    id="pdfPassword" 
-    placeholder="🔒 PDF password (if protected)" 
-    style="width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid #2D3748; background: #1A202C; color: #E0E8F0; font-size: 14px;"
-  />
-</div>
+
+        <!-- Password field -->
+        <div id="password-row" style="margin: 12px 0;">
+          <input
+            type="password"
+            id="pdfPassword"
+            placeholder="🔒 PDF password (if protected)"
+            style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid #2D3748; background:#1A202C; color:#E0E8F0; font-size:14px; box-sizing:border-box;"
+          />
+        </div>
 
         <!-- Dropzone -->
-        <div id="dropzone"
-          ondragover="event.preventDefault(); this.classList.add('active')"
-          ondragleave="this.classList.remove('active')"
-          ondrop="handleDrop(event)"
-          onclick="document.getElementById('fileInput').click()">
+        <div id="dropzone">
           <div class="drop-icon" id="drop-icon">📂</div>
           <div class="drop-title" id="drop-title">Drop your bank statement PDF here</div>
           <div class="drop-hint" id="drop-hint">or click to browse · PDF files only</div>
@@ -70,14 +67,14 @@
             <span>📎</span><span id="file-name-text"></span>
           </div>
         </div>
-        <input type="file" id="fileInput" accept="application/pdf" onchange="handleFileInput(this)" style="display:none" />
+        <input type="file" id="fileInput" accept="application/pdf" style="display:none" />
 
         <!-- Buttons -->
         <div class="btn-row">
-          <button class="btn-primary" id="convertBtn" onclick="convert()" disabled>⚡ Convert to CSV</button>
-          <button class="btn-green" id="csvBtn" style="display:none" onclick="downloadCSV()">⬇ CSV</button>
-          <button class="btn-secondary" id="jsonBtn" style="display:none" onclick="downloadJSON()">⬇ JSON</button>
-          <button class="btn-secondary" id="resetBtn" style="display:none" onclick="resetAll()">✕ Reset</button>
+          <button class="btn-primary" id="convertBtn" disabled>⚡ Convert to CSV</button>
+          <button class="btn-green" id="csvBtn" style="display:none">⬇ CSV</button>
+          <button class="btn-secondary" id="jsonBtn" style="display:none">⬇ JSON</button>
+          <button class="btn-secondary" id="resetBtn" style="display:none">✕ Reset</button>
         </div>
 
         <!-- Status -->
@@ -139,7 +136,6 @@
     Built with LoVe · BankStatementConverter © 2026 · PDF → CSV in seconds
   </footer>
 
-  <script src="index.js">
-  </script>
+  <script src="index.js"></script>
 </body>
 </html>
