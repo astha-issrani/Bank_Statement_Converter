@@ -6,6 +6,7 @@
   <title>BankParse — PDF to CSV Converter</title>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   <link href="index.css" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -20,20 +21,30 @@
 
   <!-- HERO -->
   <section class="hero">
-    <div class="hero-glow"></div>
-    <div class="hero-badge">Bank Statement Converter</div>
-    <h1>Turn Bank Statements<br>into <span>Clean Data</span></h1>
-    <p class="hero-sub">
-      Upload any PDF bank statement and convert every transaction into structured CSV or JSON — in seconds.
-    </p>
-    <div class="hero-banks">
-      <span class="bank-chip">HDFC</span>
-      <span class="bank-chip">SBI</span>
-      <span class="bank-chip">ICICI</span>
-      <span class="bank-chip">Axis</span>
-      <span class="bank-chip">Kotak</span>
-      <span class="bank-chip">PNB</span>
-      <span class="bank-chip">+ Any Bank</span>
+    <canvas id="meshCanvas"></canvas>
+    <div class="hero-grid"></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <div class="scan-line"></div>
+    <div class="hero-content">
+      <div class="hero-badge">
+        <div class="badge-dot"></div>
+        Bank Statement Converter
+      </div>
+      <h1>Turn Bank Statements<br>into <span>Clean Data</span></h1>
+      <p class="hero-sub">
+        Upload any PDF bank statement and convert every transaction into structured CSV or JSON — in seconds.
+      </p>
+      <div class="hero-banks">
+        <span class="bank-chip">HDFC</span>
+        <span class="bank-chip">SBI</span>
+        <span class="bank-chip">ICICI</span>
+        <span class="bank-chip">Axis</span>
+        <span class="bank-chip">Kotak</span>
+        <span class="bank-chip">PNB</span>
+        <span class="bank-chip">+ Any Bank</span>
+      </div>
     </div>
   </section>
 
@@ -49,12 +60,14 @@
       <div class="card-body">
 
         <!-- Password field -->
-        <div id="password-row" style="margin: 12px 0;">
+        <div id="password-row" style="margin:12px 0;">
           <input
             type="password"
             id="pdfPassword"
             placeholder="🔒 PDF password (if protected)"
-            style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid #2D3748; background:#1A202C; color:#E0E8F0; font-size:14px; box-sizing:border-box;"
+            style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid #1A2030; background:#080B10; color:#E0E8F0; font-size:13px; font-family:'IBM Plex Mono',monospace; box-sizing:border-box; outline:none; transition:border-color 0.2s;"
+            onfocus="this.style.borderColor='#00E5FF'"
+            onblur="this.style.borderColor='#1A2030'"
           />
         </div>
 
@@ -71,10 +84,10 @@
 
         <!-- Buttons -->
         <div class="btn-row">
-          <button class="btn-primary" id="convertBtn" disabled>⚡ Convert to CSV</button>
-          <button class="btn-green" id="csvBtn" style="display:none">⬇ CSV</button>
-          <button class="btn-secondary" id="jsonBtn" style="display:none">⬇ JSON</button>
-          <button class="btn-secondary" id="resetBtn" style="display:none">✕ Reset</button>
+          <button class="btn-primary"   id="convertBtn" disabled>⚡ Convert to CSV</button>
+          <button class="btn-green"     id="csvBtn"     style="display:none">⬇ CSV</button>
+          <button class="btn-secondary" id="jsonBtn"    style="display:none">⬇ JSON</button>
+          <button class="btn-secondary" id="resetBtn"   style="display:none">✕ Reset</button>
         </div>
 
         <!-- Status -->
@@ -105,6 +118,79 @@
 
       </div>
     </div>
+  </section>
+
+  <!-- DASHBOARD -->
+  <section class="dashboard" id="dashboard-section" style="display:none">
+    <div class="dash-header">
+      <div>
+        <div class="dash-title">Transaction Dashboard</div>
+        <div class="dash-sub">Visual overview of your extracted transactions</div>
+      </div>
+      <div class="dash-badge">Live</div>
+    </div>
+
+    <!-- Metric Cards Row 1 -->
+    <div class="metrics">
+      <div class="metric c-cyan">
+        <div class="mlabel">Total Transactions</div>
+        <div class="mvalue" id="m-total">—</div>
+        <div class="mchange neutral">— all time</div>
+      </div>
+      <div class="metric c-green">
+        <div class="mlabel">Total Credits</div>
+        <div class="mvalue" id="m-credits" style="color:#00FF94">—</div>
+        <div class="mchange up">↑ money in</div>
+      </div>
+      <div class="metric c-red">
+        <div class="mlabel">Total Debits</div>
+        <div class="mvalue" id="m-debits" style="color:#FF4D6D">—</div>
+        <div class="mchange down">↓ money out</div>
+      </div>
+      <div class="metric c-gold">
+        <div class="mlabel">Net Flow</div>
+        <div class="mvalue" id="m-net">—</div>
+        <div class="mchange" id="m-net-change">—</div>
+      </div>
+    </div>
+
+    <!-- Metric Cards Row 2 -->
+    <div class="metrics-2">
+      <div class="metric c-purple">
+        <div class="mlabel">Avg Transaction</div>
+        <div class="mvalue" id="m-avg">—</div>
+        <div class="mchange neutral">per entry</div>
+      </div>
+      <div class="metric c-blue">
+        <div class="mlabel">Largest Credit</div>
+        <div class="mvalue" id="m-maxcredit" style="color:#00FF94">—</div>
+        <div class="mchange neutral">single entry</div>
+      </div>
+      <div class="metric c-orange">
+        <div class="mlabel">Largest Debit</div>
+        <div class="mvalue" id="m-maxdebit" style="color:#FF4D6D">—</div>
+        <div class="mchange neutral">single entry</div>
+      </div>
+    </div>
+
+    <!-- Bar Chart -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-title">Credits vs Debits by Category</div>
+      </div>
+      <div class="chart-body">
+        <canvas id="barChart" height="220"></canvas>
+      </div>
+    </div>
+
+    <!-- Category Breakdown -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-title">Spending by Category</div>
+      </div>
+      <div class="cat-grid" id="cat-grid"></div>
+    </div>
+
   </section>
 
   <!-- FEATURES -->
